@@ -16,13 +16,15 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
-    "incremental": true,
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/components/*": [
         "components/*"
       ], "@/contract-readonly":["contract-readonly.ts"],
-      "@/lib*":["lib/*"],
+      "@/lib/*":[
+        "lib/*"
+      ],
       "@/constants": [
         "constants"
       ]

@@ -6,10 +6,9 @@ import "./globals.css"
 
 // ✅ import your WalletProvider here
 import { WalletProvider } from "@/lib/wallet-context"
-
-// Optional navigation and footer
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
+import { AppProviders } from "@/components/theme-provider"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -30,12 +29,13 @@ export default function RootLayout({
       <body
         className={`font-sans antialiased flex flex-col min-h-screen bg-background text-foreground ${_geist.className}`}
       >
-        {/* ✅ Wrap the whole app with WalletProvider */}
-        <WalletProvider>
-          <Navigation />
-          <main className="flex-1 w-full px-4 sm:px-6 md:px-8">{children}</main>
-          <Footer />
-        </WalletProvider>
+        <AppProviders>
+          <WalletProvider>
+            <Navigation />
+            <main className="flex-1 w-full px-4 sm:px-6 md:px-8">{children}</main>
+            <Footer />
+          </WalletProvider>
+        </AppProviders>
         <Analytics />
       </body>
     </html>

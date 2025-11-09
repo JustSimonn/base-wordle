@@ -20,6 +20,13 @@ export default function LeaderboardPage() {
   const [totalPoints, setTotalPoints] = useState(0)
 
   useEffect(() => {
+    const sdkWin = (window as any).sdk
+    if (sdkWin?.actions?.ready) {
+      try { sdkWin.actions.ready() } catch {}
+    }
+  }, [])
+
+  useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true)

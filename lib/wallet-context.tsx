@@ -39,48 +39,61 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const announced: Array<{ info: any; provider: any }> = [];
+    (async () => {
+      const announced: Array<{ info: any; provider: any }> = [];
 
-    const onAnnounce = (event: any) => {
+      // Try Farcaster Mini App provider first
       try {
-        if (event?.detail?.provider) announced.push(event.detail);
+        const sdkWin = (window as any).sdk;
+        if (sdkWin?.wallet?.getEthereumProvider) {
+          const mini = await sdkWin.wallet.getEthereumProvider();
+          if (mini && typeof mini.request === "function") {
+            announced.push({ info: { name: "Farcaster MiniApp", rdns: "farcaster.miniapp" }, provider: mini });
+          }
+        }
       } catch {}
-    };
 
-    try {
-      window.addEventListener("eip6963:announceProvider", onAnnounce);
-      window.dispatchEvent(new Event("eip6963:requestProvider"));
-    } catch {}
+      const onAnnounce = (event: any) => {
+        try {
+          if (event?.detail?.provider) announced.push(event.detail);
+        } catch {}
+      };
 
-    const multi = (window as any).ethereum?.providers || [];
-    if (multi.length) {
-      for (const p of multi) {
-        announced.push({ info: { name: p?.name || "Injected" , rdns: "" }, provider: p });
+      try {
+        window.addEventListener("eip6963:announceProvider", onAnnounce);
+        window.dispatchEvent(new Event("eip6963:requestProvider"));
+      } catch {}
+
+      const multi = (window as any).ethereum?.providers || [];
+      if (multi.length) {
+        for (const p of multi) {
+          announced.push({ info: { name: p?.name || "Injected" , rdns: "" }, provider: p });
+        }
+      } else if ((window as any).ethereum) {
+        announced.push({ info: { name: "Injected Provider", rdns: "" }, provider: (window as any).ethereum });
       }
-    } else if ((window as any).ethereum) {
-      announced.push({ info: { name: "Injected Provider", rdns: "" }, provider: (window as any).ethereum });
-    }
 
-    setProviders6963(announced);
+      setProviders6963(announced);
 
-    const valid = announced.filter((p) => p?.provider && typeof p.provider.request === "function");
+      const valid = announced.filter((p) => p?.provider && typeof p.provider.request === "function");
 
-    const preferred =
-      valid.find((p) => /warpcast|farcaster/i.test(p.info?.name || "") || /warpcast|farcaster/i.test(p.info?.rdns || ""))?.provider ||
-      valid.find((p) => p.provider?.isCoinbaseWallet)?.provider ||
-      valid[0]?.provider;
+      const preferred =
+        valid.find((p) => /warpcast|farcaster/i.test(p.info?.name || "") || /warpcast|farcaster/i.test(p.info?.rdns || ""))?.provider ||
+        valid.find((p) => p.provider?.isCoinbaseWallet)?.provider ||
+        valid[0]?.provider;
 
-    if (preferred) {
-      try {
-        setProvider(new ethers.BrowserProvider(preferred));
-      } catch {}
-    }
+      if (preferred) {
+        try {
+          setProvider(new ethers.BrowserProvider(preferred));
+        } catch {}
+      }
 
-    return () => {
-      try {
-        window.removeEventListener("eip6963:announceProvider", onAnnounce);
-      } catch {}
-    };
+      return () => {
+        try {
+          window.removeEventListener("eip6963:announceProvider", onAnnounce);
+        } catch {}
+      };
+    })();
   }, []);
 
   // ------------------ CONNECT WALLET ------------------ //
