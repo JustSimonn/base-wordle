@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { ethers } from "ethers";
 import { getPlayerStats, getPlayerEvents as fetchPlayerEvents } from "./contract";
+import { sdk } from "@farcaster/miniapp-sdk";
 
 interface PlayerStats {
   address: string;
@@ -42,50 +43,84 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       const announced: Array<{ info: any; provider: any }> = [];
 
-      // Try Farcaster Mini App provider first
-      try {
-        const sdkWin = (window as any).sdk;
-        if (sdkWin?.wallet?.getEthereumProvider) {
-          const mini = await sdkWin.wallet.getEthereumProvider();
-          if (mini && typeof mini.request === "function") {
-            announced.push({ info: { name: "Farcaster MiniApp", rdns: "farcaster.miniapp" }, provider: mini });
-          }
-        }
-      } catch {}
+      // Check if we're in a Farcaster environment first
+      const isInFarcaster = typeof (window as any).sdk !== "undefined" || 
+                            typeof (window as any).farcaster !== "undefined";
 
+      // Try Farcaster Mini App provider ONLY if in Farcaster environment
+      if (isInFarcaster) {
+        try {
+          const sdkWin = (window as any).sdk;
+          if (sdkWin?.wallet?.getEthereumProvider) {
+            const mini = await sdkWin.wallet.getEthereumProvider();
+            if (mini && typeof mini.request === "function") {
+              // Validate the provider works before adding
+              try {
+                await mini.request({ method: "eth_chainId" });
+                announced.push({ info: { name: "Farcaster MiniApp", rdns: "farcaster.miniapp" }, provider: mini });
+                console.log("✅ Farcaster wallet provider detected");
+              } catch (validationError) {
+                console.warn("Farcaster provider validation failed:", validationError);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn("Farcaster SDK not available:", error);
+        }
+      }
+
+      // EIP-6963 providers (modern wallet detection)
       const onAnnounce = (event: any) => {
         try {
-          if (event?.detail?.provider) announced.push(event.detail);
+          if (event?.detail?.provider && typeof event.detail.provider.request === "function") {
+            announced.push(event.detail);
+          }
         } catch {}
       };
 
       try {
         window.addEventListener("eip6963:announceProvider", onAnnounce);
         window.dispatchEvent(new Event("eip6963:requestProvider"));
+        // Give EIP-6963 providers time to announce
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch {}
 
+      // Legacy injected providers (MetaMask, Coinbase Wallet, etc.)
       const multi = (window as any).ethereum?.providers || [];
       if (multi.length) {
         for (const p of multi) {
-          announced.push({ info: { name: p?.name || "Injected" , rdns: "" }, provider: p });
+          if (p && typeof p.request === "function") {
+            announced.push({ info: { name: p?.name || "Injected" , rdns: "" }, provider: p });
+          }
         }
-      } else if ((window as any).ethereum) {
+      } else if ((window as any).ethereum && typeof (window as any).ethereum.request === "function") {
         announced.push({ info: { name: "Injected Provider", rdns: "" }, provider: (window as any).ethereum });
       }
+
+      console.log(`🔍 Found ${announced.length} wallet provider(s):`, announced.map(a => a.info?.name));
 
       setProviders6963(announced);
 
       const valid = announced.filter((p) => p?.provider && typeof p.provider.request === "function");
 
-      const preferred =
-        valid.find((p) => /warpcast|farcaster/i.test(p.info?.name || "") || /warpcast|farcaster/i.test(p.info?.rdns || ""))?.provider ||
-        valid.find((p) => p.provider?.isCoinbaseWallet)?.provider ||
-        valid[0]?.provider;
+      // Priority: Farcaster (when in Farcaster) > Coinbase Wallet > First available
+      let preferred = null;
+      if (isInFarcaster) {
+        preferred = valid.find((p) => /warpcast|farcaster/i.test(p.info?.name || "") || /warpcast|farcaster/i.test(p.info?.rdns || ""))?.provider;
+      }
+      if (!preferred) {
+        preferred = valid.find((p) => p.provider?.isCoinbaseWallet)?.provider || valid[0]?.provider;
+      }
 
       if (preferred) {
         try {
           setProvider(new ethers.BrowserProvider(preferred));
-        } catch {}
+          console.log(`✅ Auto-selected wallet provider: ${valid.find(v => v.provider === preferred)?.info?.name}`);
+        } catch (err) {
+          console.error("Failed to create BrowserProvider:", err);
+        }
+      } else {
+        console.warn("⚠️ No wallet providers found. Please install MetaMask, Coinbase Wallet, or open in Warpcast.");
       }
 
       return () => {
@@ -105,27 +140,49 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       // Build candidate list if provider missing
       if (!newProvider) {
         const candidates: Array<any> = [];
+        const isInFarcaster = typeof (window as any).sdk !== "undefined" || 
+                              typeof (window as any).farcaster !== "undefined";
 
         // EIP-6963 announced providers
-        for (const p of providers6963) candidates.push(p.provider);
+        for (const p of providers6963) {
+          if (p?.provider && typeof p.provider.request === "function") {
+            candidates.push(p.provider);
+          }
+        }
 
         // Multiple injected providers
         const multi = (window as any)?.ethereum?.providers || [];
-        for (const p of multi) candidates.push(p);
+        for (const p of multi) {
+          if (p && typeof p.request === "function") {
+            candidates.push(p);
+          }
+        }
 
         // Single injected provider
-        if ((window as any)?.ethereum) candidates.push((window as any).ethereum);
+        if ((window as any)?.ethereum && typeof (window as any).ethereum.request === "function") {
+          candidates.push((window as any).ethereum);
+        }
 
         // Filter to valid EIP-1193 providers
         const valid = candidates.filter((p) => p && typeof p.request === "function");
 
-        // Prefer Farcaster/Warpcast, then Coinbase, else first valid
-        const farcaster = providers6963.find((p) => /warpcast|farcaster/i.test(p.info?.name || "") || /warpcast|farcaster/i.test(p.info?.rdns || ""))?.provider;
-        const coinbase = valid.find((p) => p.isCoinbaseWallet);
-        const chosen = (farcaster && typeof farcaster.request === "function" ? farcaster : null) || coinbase || valid[0] || null;
+        if (valid.length === 0) {
+          throw new Error("No wallet found. Please install MetaMask, Coinbase Wallet, or open in Warpcast.");
+        }
 
-        if (!chosen) throw new Error("No wallet provider found");
+        // Prefer Farcaster/Warpcast ONLY when in Farcaster, then Coinbase, else first valid
+        let chosen = null;
+        if (isInFarcaster) {
+          const farcaster = providers6963.find((p) => /warpcast|farcaster/i.test(p.info?.name || "") || /warpcast|farcaster/i.test(p.info?.rdns || ""))?.provider;
+          if (farcaster && typeof farcaster.request === "function") {
+            chosen = farcaster;
+          }
+        }
+        if (!chosen) {
+          chosen = valid.find((p) => p.isCoinbaseWallet) || valid[0];
+        }
 
+        console.log(`🔗 Connecting to wallet...`);
         newProvider = new ethers.BrowserProvider(chosen);
         setProvider(newProvider);
       }

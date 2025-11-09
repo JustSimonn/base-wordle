@@ -14,14 +14,6 @@ export default function GamePage() {
   const [hydrated, setHydrated] = useState(false);
   const [showDepositPrompt, setShowDepositPrompt] = useState(true);
 
-  // Mini App ready (hide splash in Warpcast)
-  useEffect(() => {
-    const sdkWin = (window as any).sdk
-    if (sdkWin?.actions?.ready) {
-      try { sdkWin.actions.ready() } catch {}
-    }
-  }, [])
-
   // Client hydration
   useEffect(() => setHydrated(true), []);
 

@@ -9,6 +9,7 @@ import { WalletProvider } from "@/lib/wallet-context"
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
 import { AppProviders } from "@/components/theme-provider"
+import { FarcasterProvider } from "@/components/farcaster-provider"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -29,14 +30,16 @@ export default function RootLayout({
       <body
         className={`font-sans antialiased flex flex-col min-h-screen bg-background text-foreground ${_geist.className}`}
       >
-        <AppProviders>
-          <WalletProvider>
-            <Navigation />
-            <main className="flex-1 w-full px-4 sm:px-6 md:px-8">{children}</main>
-            <Footer />
-          </WalletProvider>
-        </AppProviders>
-        <Analytics />
+        <FarcasterProvider>
+          <AppProviders>
+            <WalletProvider>
+              <Navigation />
+              <main className="flex-1 w-full px-4 sm:px-6 md:px-8">{children}</main>
+              <Footer />
+            </WalletProvider>
+          </AppProviders>
+          <Analytics />
+        </FarcasterProvider>
       </body>
     </html>
   )
