@@ -1,0 +1,19 @@
+{
+  "id": "base-wordle",
+  "name": "Base Wordle",
+  "description": "Play Wordle on Base blockchain",
+  "icon": "https://yourdomain.com/icon.png",
+  "url": "https://your-vercel-app-url.vercel.app",
+  "developer": {
+    "name": "justsimon",
+    "url": "https://x.com/_PulseIX"
+  },
+  "accountAssociation": {
+    "header": "0x...",
+    "payload": "0x...",
+    "signature": "0x..."
+  },
+  "base": {
+    "builderAddress": "0x3a40a53b39D24d51D8aC40234f0663946040E020"
+  }
+}
