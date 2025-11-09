@@ -12,20 +12,12 @@ export function FarcasterProvider({ children }: { children: React.ReactNode }) {
     // Initialize Farcaster Mini App SDK
     const initializeFarcasterSDK = async () => {
       try {
-        // Check if we're actually running in a Farcaster Mini App environment
-        const isInFarcaster = typeof window !== "undefined" && 
-                              ((window as any).sdk || (window as any).farcaster);
-        
-        if (isInFarcaster && (window as any).sdk?.actions?.ready) {
-          // Call ready() to dismiss the splash screen and show the app
-          await sdk.actions.ready();
-          console.log("✅ Farcaster Mini App SDK initialized successfully");
-        } else {
-          console.log("🌐 Running outside Farcaster - skipping SDK initialization");
-        }
+        // Always try to call ready() - the SDK will handle if not in Farcaster environment
+        await sdk.actions.ready();
+        console.log("✅ Farcaster Mini App SDK ready() called");
       } catch (error) {
         // Gracefully handle errors - app should still work outside Farcaster
-        console.warn("⚠️ Farcaster SDK initialization failed:", error);
+        console.warn("⚠️ Farcaster SDK ready() call failed (expected outside Farcaster):", error);
       }
     };
 
